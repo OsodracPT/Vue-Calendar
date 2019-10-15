@@ -3,6 +3,7 @@
     <v-col>
       <v-sheet height="64">
         <v-toolbar flat color="white">
+          <v-btn color="primary" class="mr-4" @click="dialog = true">New Event</v-btn>
           <v-btn outlined class="mr-4" @click="setToday">Today</v-btn>
           <v-btn fab text small @click="prev">
             <v-icon small>mdi-chevron-left</v-icon>
@@ -36,6 +37,26 @@
           </v-menu>
         </v-toolbar>
       </v-sheet>
+      <!-- Add Event dialog -->
+      <v-dialog v-model="dialog" max-width="500">
+        <v-card>
+          <v-container>
+            <v-form @submit.prevent="addEvent">
+              <v-text-field v-model="name" type="text" label="event name (required)"></v-text-field>
+              <v-text-field v-model="details" type="text" label="detail (required)"></v-text-field>
+              <v-text-field v-model="start" type="date" label="start (required)"></v-text-field>
+              <v-text-field v-model="end" type="date" label="end (required)"></v-text-field>
+              <v-text-field v-model="color" type="color" label="color (click to open color menu)"></v-text-field>
+              <v-btn
+                type="submit"
+                color="primary"
+                class="mr-4"
+                @click.stop="dialog=false"
+              >Create Event</v-btn>
+            </v-form>
+          </v-container>
+        </v-card>
+      </v-dialog>
       <v-sheet height="600">
         <v-calendar
           ref="calendar"
@@ -78,7 +99,13 @@
               </form>
             </v-card-text>
             <v-card-actions>
-              <v-btn text color="secondary" @click="selectedOpen = false">Cancel</v-btn>
+              <v-btn text color="secondary" @click="selectedOpen = false">Close</v-btn>
+              <v-btn
+                text
+                v-if="currentlyEditing !== selectedEvent.id"
+                @click.prevent="editEvent(selectedEvent)"
+              >Edit</v-btn>
+              <v-btn text v-else @click.prevent="updateEvent(selectedEvent)">Save</v-btn>
             </v-card-actions>
           </v-card>
         </v-menu>
@@ -163,6 +190,45 @@ export default {
       });
       this.events = events;
     },
+    async addEvent() {
+      if (this.name && this.start && this.end) {
+        await db.collection("calEvent").add({
+          name: this.name,
+          details: this.details,
+          start: this.start,
+          end: this.end,
+          color: this.color
+        });
+        this.getEvents();
+        this.name = "";
+        this.details = "";
+        this.start = "";
+        this.end = "";
+        this.color = "";
+      } else {
+        alert("Name, start and end date are required.");
+      }
+    },
+    async updateEvent(selectedEvent) {
+      await db
+        .collection("calEvent")
+        .doc(this.currentlyEditing)
+        .update({
+          details: selectedEvent.details
+        });
+
+      this.selectedOpen = false;
+      this.currentlyEditing = null;
+    },
+    async deleteEvent(selectedEvent) {
+      await db
+        .collection("calEvent")
+        .doc(selectedEvent)
+        .delete();
+
+      this.selectedOpen = false;
+      this.getEvents();
+    },
     viewDay({ date }) {
       this.focus = date;
       this.type = "day";
@@ -178,6 +244,9 @@ export default {
     },
     next() {
       this.$refs.calendar.next();
+    },
+    editEvent(selectedEvent) {
+      this.currentlyEditing = selectedEvent.id;
     },
     showEvent({ nativeEvent, event }) {
       const open = () => {
